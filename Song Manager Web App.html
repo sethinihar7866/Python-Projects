@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Song Request System</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f9f9f9;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #4a90e2;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 20px;
+    }
+    label {
+      margin: 10px 0 5px;
+    }
+    input[type="text"], select {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px 15px;
+      background-color: #4a90e2;
+      border: none;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    button:hover {
+      background-color: #357ab7;
+    }
+    #queue {
+      margin-top: 30px;
+    }
+    .song {
+      background: #f0f4f8;
+      padding: 10px;
+      margin: 10px 0;
+      border-left: 4px solid #4a90e2;
+      border-radius: 4px;
+    }
+    /* Modal styles */
+    #correctSongModal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    #correctSongModal > div {
+      background: white;
+      padding: 30px 20px 20px 20px;
+      border-radius: 10px;
+      max-width: 400px;
+      margin: auto;
+      position: relative;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    #correctSongModal span {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 22px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Song Request System</h1>
+
+    <form id="addSongForm">
+      <h2>Add Song</h2>
+      <label>User ID</label>
+      <input type="text" id="userId" required />
+
+      <label>Song Title</label>
+      <input type="text" id="songTitle" required />
+
+      <label>From (Optional)</label>
+      <input type="text" id="fromUser" />
+
+      <label>To (Optional)</label>
+      <input type="text" id="toUser" />
+
+      <button type="submit">Add Song</button>
+    </form>
+
+    <button onclick="openCorrectSongModal()">Correct Song</button>
+    <button onclick="playSong()">Play Next Song</button>
+    <button onclick="showQueue()">Show Queue</button>
+
+    <!-- Modal for Correct Song Form -->
+    <div id="correctSongModal">
+      <div>
+        <span onclick="closeCorrectSongModal()">&times;</span>
+        <form id="correctSongForm">
+          <h2>Correct Song</h2>
+          <label>User ID</label>
+          <input type="text" id="userIdCorrect" required />
+
+          <label>Old Song Title</label>
+          <input type="text" id="oldSongTitle" required />
+
+          <label>New Song Title</label>
+          <input type="text" id="newSongTitle" required />
+
+          <button type="submit">Correct Song</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="queue">
+      <h2>Current Queue</h2>
+      <div id="queueList"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:8000';
+
+    document.getElementById('addSongForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = {
+        user_id: document.getElementById('userId').value,
+        song_name: document.getElementById('songTitle').value,
+        from_user: document.getElementById('fromUser').value,
+        dedicated_to: document.getElementById('toUser').value
+      };
+      await fetch(`${API_BASE}/add_song`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      showQueue();
+    });
+
+    // Modal logic for Correct Song
+    function openCorrectSongModal() {
+      document.getElementById('correctSongModal').style.display = 'flex';
+    }
+    function closeCorrectSongModal() {
+      document.getElementById('correctSongModal').style.display = 'none';
+      document.getElementById('correctSongForm').reset();
+    }
+    document.getElementById('correctSongForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = {
+        user_id: document.getElementById('userIdCorrect').value,
+        old_song: document.getElementById('oldSongTitle').value,
+        new_song: document.getElementById('newSongTitle').value
+      };
+      await fetch(`${API_BASE}/replace_song`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      closeCorrectSongModal();
+      showQueue();
+    });
+
+    async function playSong() {
+      await fetch(`${API_BASE}/play_song`, { method: 'POST' });
+      showQueue();
+    }
+
+    async function showQueue() {
+      const res = await fetch(`${API_BASE}/queue`);
+      const queue = await res.json();
+      const queueList = document.getElementById('queueList');
+      queueList.innerHTML = '';
+      queue.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = 'song';
+        div.textContent = `${index + 1}. ${item.title} (From: ${item.from || 'N/A'}, To: ${item.to || 'N/A'}) [User: ${item.user}]`;
+        queueList.appendChild(div);
+      });
+    }
+
+    showQueue();
+  </script>
+</body>
+</html>
